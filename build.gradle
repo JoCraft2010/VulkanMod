@@ -3,6 +3,14 @@ plugins {
 	id 'maven-publish'
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+        if (details.requested.group == 'org.lwjgl') {
+            details.useVersion "3.4.1"
+        }
+    }
+}
+
 version = project.mod_version
 group = project.maven_group
 
@@ -40,7 +48,7 @@ dependencies {
 	includeModule("fabric-transitive-access-wideners-v1")
 }
 
-project.ext.lwjglVersion = "3.3.3"
+project.ext.lwjglVersion = "3.4.1"
 project.ext.jomlVersion = "1.10.4"
 project.ext.winNatives = "natives-windows"
 project.ext.linuxNatives = "natives-linux"
