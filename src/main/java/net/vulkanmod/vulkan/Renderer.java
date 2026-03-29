@@ -548,6 +548,10 @@ public class Renderer {
 
         swapChain.recreate();
 
+        if (this.mainPass != null)
+            this.mainPass.cleanUp();
+        this.mainPass = DefaultMainPass.create();
+
         //Semaphores need to be recreated in order to make them unsignaled
         destroySyncObjects();
 
@@ -568,6 +572,7 @@ public class Renderer {
         }
 
         createSyncObjects();
+        PipelineManager.reloadPipelines();
         this.mainPass.onResize();
 
         this.onResizeCallbacks.forEach(Runnable::run);

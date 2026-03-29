@@ -24,6 +24,7 @@ public class Config {
     public int device = -1;
 
     public int ambientOcclusion = 1;
+    public int msaa = 0;
     public int frameQueueSize = 2;
     public int builderThreads = 0;
 

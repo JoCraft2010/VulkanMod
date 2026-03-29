@@ -211,6 +211,18 @@ public abstract class Options {
                                     default -> "vulkanmod.options.unknown";
                                 }))
                                 .setTooltip(Component.translatable("vulkanmod.options.ao.subBlock.tooltip")),
+                        new CyclingOption<>(Component.translatable("vulkanmod.options.msaa"),
+                            new Integer[]{0, 2, 4, 8},
+                            value -> {
+                                config.msaa = value;
+                                Renderer.scheduleSwapChainUpdate();
+                                minecraft.levelRenderer.allChanged();
+                            },
+                            () -> config.msaa)
+                            .setTranslator(value -> value == 0
+                                ? Component.translatable("options.off")
+                                : Component.nullToEmpty(value + "x"))
+                            .setTooltip(Component.translatable("vulkanmod.options.msaa.tooltip")),
                         new RangeOption(Component.translatable("options.biomeBlendRadius"),
                                         0, 7, 1,
                                         value -> {

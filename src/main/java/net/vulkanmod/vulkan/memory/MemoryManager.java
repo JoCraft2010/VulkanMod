@@ -151,7 +151,7 @@ public class MemoryManager {
     }
 
     public void createImage(int width, int height, int arrayLayers, int mipLevels,
-                            int format, int tiling, int usage, int flags,
+                            int samples, int format, int tiling, int usage, int flags,
                             int memProperties,
                             LongBuffer pTextureImage, PointerBuffer pTextureImageMemory) {
         try (MemoryStack stack = stackPush()) {
@@ -167,7 +167,7 @@ public class MemoryManager {
             imageInfo.tiling(tiling);
             imageInfo.initialLayout(VK_IMAGE_LAYOUT_UNDEFINED);
             imageInfo.usage(usage);
-            imageInfo.samples(VK_SAMPLE_COUNT_1_BIT);
+            imageInfo.samples(samples);
             imageInfo.flags(flags);
 //            imageInfo.sharingMode(VK_SHARING_MODE_CONCURRENT);
             imageInfo.pQueueFamilyIndices(

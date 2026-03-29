@@ -4,13 +4,15 @@ import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.memory.MemoryManager;
+import net.vulkanmod.vulkan.texture.VulkanImage;
+
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
 import java.nio.LongBuffer;
 
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK12.*;
 
 public class RenderPass {
     Framebuffer framebuffer;
@@ -42,8 +44,11 @@ public class RenderPass {
     private void createRenderPass() {
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(attachmentCount, stack);
-            VkAttachmentReference.Buffer attachmentRefs = VkAttachmentReference.calloc(attachmentCount, stack);
+            int samples = framebuffer.samples;
+
+            int actualAttachmentCount = samples > 1 ? 3 : attachmentCount;
+            VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(actualAttachmentCount, stack);
+            VkAttachmentReference.Buffer attachmentRefs = VkAttachmentReference.calloc(actualAttachmentCount, stack);
 
             VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack);
             subpass.pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS);
@@ -54,13 +59,13 @@ public class RenderPass {
             if (colorAttachmentInfo != null) {
                 VkAttachmentDescription colorAttachment = attachments.get(i);
                 colorAttachment.format(colorAttachmentInfo.format)
-                               .samples(VK_SAMPLE_COUNT_1_BIT)
-                               .loadOp(colorAttachmentInfo.loadOp)
-                               .storeOp(colorAttachmentInfo.storeOp)
-                               .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-                               .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                               .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-                               .finalLayout(colorAttachmentInfo.finalLayout);
+                        .samples(samples)
+                        .loadOp(colorAttachmentInfo.loadOp)
+                        .storeOp(samples > 1 ? VK_ATTACHMENT_STORE_OP_DONT_CARE : colorAttachmentInfo.storeOp)
+                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                        .finalLayout(samples > 1 ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : colorAttachmentInfo.finalLayout);
 
                 VkAttachmentReference colorAttachmentRef = attachmentRefs.get(0)
                                                                          .attachment(0)
@@ -76,19 +81,37 @@ public class RenderPass {
             if (depthAttachmentInfo != null) {
                 VkAttachmentDescription depthAttachment = attachments.get(i);
                 depthAttachment.format(depthAttachmentInfo.format)
-                               .samples(VK_SAMPLE_COUNT_1_BIT)
-                               .loadOp(depthAttachmentInfo.loadOp)
-                               .storeOp(depthAttachmentInfo.storeOp)
-                               .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-                               .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                               .initialLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                               .finalLayout(depthAttachmentInfo.finalLayout);
+                        .samples(samples)
+                        .loadOp(depthAttachmentInfo.loadOp)
+                        .storeOp(depthAttachmentInfo.storeOp)
+                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .initialLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                        .finalLayout(depthAttachmentInfo.finalLayout);
 
                 VkAttachmentReference depthAttachmentRef = attachmentRefs.get(1)
                                                                          .attachment(1)
                                                                          .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
                 subpass.pDepthStencilAttachment(depthAttachmentRef);
+
+                ++i;
+            }
+
+            if (samples > 1 && colorAttachmentInfo != null) {
+                attachments.get(i)
+                        .format(colorAttachmentInfo.format)
+                        .samples(VK_SAMPLE_COUNT_1_BIT)
+                        .loadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                        .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                        .finalLayout(colorAttachmentInfo.finalLayout);
+
+                VkAttachmentReference.Buffer resolveRef = VkAttachmentReference.calloc(1, stack);
+                resolveRef.get(0).attachment(i).layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                subpass.pResolveAttachments(resolveRef);
             }
 
             VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack);
@@ -136,6 +159,13 @@ public class RenderPass {
 
     public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack) {
 
+        if (colorAttachmentInfo != null) {
+            VulkanImage color = (framebuffer.samples > 1) ? framebuffer.msaaColorAttachment : framebuffer.getColorAttachment();
+            if (color.getCurrentLayout() != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+                color.transitionImageLayout(stack, commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
+        }
+
         if (colorAttachmentInfo != null
             && framebuffer.getColorAttachment().getCurrentLayout() != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
         {
@@ -159,9 +189,12 @@ public class RenderPass {
         renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
         renderPassInfo.renderArea(renderArea);
 
-        VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
+        int clearCount = (framebuffer.samples > 1) ? 3 : 2;
+        VkClearValue.Buffer clearValues = VkClearValue.malloc(clearCount, stack);
         clearValues.get(0).color().float32(VRenderSystem.clearColor);
         clearValues.get(1).depthStencil().set(1.0f, 0);
+        if (framebuffer.samples > 1)
+            clearValues.get(2).color().float32(VRenderSystem.clearColor);
 
         renderPassInfo.pClearValues(clearValues);
 
@@ -234,11 +267,18 @@ public class RenderPass {
         if (colorAttachmentInfo != null) {
             VkRenderingAttachmentInfo.Buffer colorAttachment = VkRenderingAttachmentInfo.calloc(1, stack);
             colorAttachment.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR);
-            colorAttachment.imageView(framebuffer.getColorAttachment().getImageView());
+            VulkanImage renderTarget = (framebuffer.samples > 1) ? framebuffer.msaaColorAttachment : framebuffer.getColorAttachment();
+            colorAttachment.imageView(renderTarget.getImageView());
             colorAttachment.imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             colorAttachment.loadOp(colorAttachmentInfo.loadOp);
             colorAttachment.storeOp(colorAttachmentInfo.storeOp);
             colorAttachment.clearValue(clearValues.get(0));
+
+            if (framebuffer.samples > 1) {
+                colorAttachment.resolveImageView(framebuffer.getColorAttachment().getImageView());
+                colorAttachment.resolveImageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                colorAttachment.resolveMode(VK_RESOLVE_MODE_AVERAGE_BIT);
+            }
 
             renderingInfo.pColorAttachments(colorAttachment);
         }

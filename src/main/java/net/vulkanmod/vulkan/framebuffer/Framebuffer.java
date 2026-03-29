@@ -1,7 +1,7 @@
 package net.vulkanmod.vulkan.framebuffer;
 
 import it.unimi.dsi.fastutil.objects.Reference2LongArrayMap;
-import net.vulkanmod.vulkan.Renderer;
+import net.vulkanmod.Initializer;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.memory.MemoryManager;
 import net.vulkanmod.vulkan.texture.VulkanImage;
@@ -31,6 +31,8 @@ public class Framebuffer {
 
     private VulkanImage colorAttachment;
     protected VulkanImage depthAttachment;
+    protected VulkanImage msaaColorAttachment;
+    public int samples = 1;
 
     private int level;
 
@@ -63,25 +65,36 @@ public class Framebuffer {
     }
 
     public void createImages() {
+        this.samples = Initializer.CONFIG.msaa > 0 ? Initializer.CONFIG.msaa : 1;
+
         if (this.hasColorAttachment) {
-            this.colorAttachment =
-                    VulkanImage.builder(this.width, this.height)
-                               .setName(this.name != null ? String.format("%s Color", this.name) : null)
-                               .setFormat(format)
-                               .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
-                               .setLinearFiltering(linearFiltering)
-                               .setClamp(true)
-                               .createVulkanImage();
+            this.colorAttachment = VulkanImage.builder(this.width, this.height)
+                    .setName(this.name != null ? String.format("%s Color", this.name) : null)
+                    .setFormat(format)
+                    .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+                    .setLinearFiltering(linearFiltering)
+                    .setClamp(true)
+                    .createVulkanImage();
+
+            if (this.samples > 0) {
+                this.msaaColorAttachment = VulkanImage.builder(this.width, this.height)
+                        .setName(this.name != null ? String.format("%s MSAA Color", this.name) : null)
+                        .setFormat(format)
+                        .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT)
+                        .setSamples(this.samples)
+                        .createVulkanImage();
+            }
         }
 
         if (this.hasDepthAttachment) {
             this.depthAttachment = VulkanImage.builder(width, height)
-                                              .setName(this.name != null ? String.format("%s Depth", this.name) : null)
-                                              .setFormat(depthFormat)
-                                              .setUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
-                                              .setLinearFiltering(depthLinearFiltering)
-                                              .setClamp(true)
-                                              .createVulkanImage();
+                    .setName(this.name != null ? String.format("%s Depth", this.name) : null)
+                    .setFormat(depthFormat)
+                    .setUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+                    .setLinearFiltering(depthLinearFiltering)
+                    .setSamples(this.samples)
+                    .setClamp(true)
+                    .createVulkanImage();
 
             this.attachmentCount++;
         }
@@ -170,6 +183,9 @@ public class Framebuffer {
         if (cleanImages) {
             if (this.colorAttachment != null)
                 this.colorAttachment.free();
+
+            if (this.msaaColorAttachment != null)
+                this.msaaColorAttachment.free();
 
             if (this.depthAttachment != null)
                 this.depthAttachment.free();

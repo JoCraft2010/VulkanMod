@@ -163,13 +163,23 @@ public class SwapChain extends Framebuffer {
     private long[] createFramebuffers(RenderPass renderPass) {
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-
             long[] framebuffers = new long[this.swapChainImages.size()];
 
             for (int i = 0; i < this.swapChainImages.size(); ++i) {
-                LongBuffer attachments = stack.longs(this.swapChainImages.get(i).getImageView(), this.depthAttachment.getImageView());
+                LongBuffer attachments;
 
-                LongBuffer pFramebuffer = stack.mallocLong(1);
+                if (this.samples > 1) {
+                    attachments = stack.longs(
+                        this.msaaColorAttachment.getImageView(),
+                        this.depthAttachment.getImageView(),
+                        this.swapChainImages.get(i).getImageView()
+                    );
+                } else {
+                    attachments = stack.longs(
+                        this.swapChainImages.get(i).getImageView(),
+                        this.depthAttachment.getImageView()
+                    );
+                }
 
                 VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack);
                 framebufferInfo.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
@@ -179,6 +189,7 @@ public class SwapChain extends Framebuffer {
                 framebufferInfo.layers(1);
                 framebufferInfo.pAttachments(attachments);
 
+                LongBuffer pFramebuffer = stack.mallocLong(1);
                 if (vkCreateFramebuffer(Vulkan.getVkDevice(), framebufferInfo, null, pFramebuffer) != VK_SUCCESS) {
                     throw new RuntimeException("Failed to create framebuffer");
                 }
@@ -191,9 +202,31 @@ public class SwapChain extends Framebuffer {
     }
 
     private void createDepthResources() {
-        this.depthAttachment = VulkanImage.createDepthImage(depthFormat, this.width, this.height,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                false, false);
+        if (this.msaaColorAttachment != null) {
+            this.msaaColorAttachment.free();
+            this.msaaColorAttachment = null;
+        }
+
+        this.samples = Initializer.CONFIG.msaa > 0 ? Initializer.CONFIG.msaa : 1;
+        if (this.samples > 1) {
+            this.msaaColorAttachment = VulkanImage.builder(this.width, this.height)
+                .setFormat(this.format)
+                .setUsage(VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+                .setSamples(this.samples)
+                .setName("MSAA Color Buffer")
+                .createVulkanImage();
+        }
+
+        if (this.depthAttachment != null) {
+            this.depthAttachment.free();
+        }
+
+        this.depthAttachment = VulkanImage.builder(this.width, this.height)
+            .setFormat(depthFormat)
+            .setUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+            .setSamples(this.samples)
+            .setName("Depth Buffer")
+            .createVulkanImage();
     }
 
     @Override
@@ -212,6 +245,9 @@ public class SwapChain extends Framebuffer {
 
         vkDestroySwapchainKHR(device, this.swapChainId, null);
         this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
+
+        if (this.msaaColorAttachment != null)
+            this.msaaColorAttachment.free();
 
         this.depthAttachment.free();
     }

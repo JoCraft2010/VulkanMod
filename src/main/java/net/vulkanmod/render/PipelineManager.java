@@ -87,6 +87,12 @@ public abstract class PipelineManager {
         return cloudsPipeline;
     }
 
+    public static void reloadPipelines() {
+        destroyPipelines();
+        createBasicPipelines();
+        setDefaultShader();
+    }
+
     public static void destroyPipelines() {
         terrainShaderEarlyZ.cleanUp();
         terrainShader.cleanUp();

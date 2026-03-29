@@ -19,6 +19,9 @@
   "vulkanmod.options.ao.subBlock": "ON (Sub-block)",
   "vulkanmod.options.ao.subBlock.tooltip": "ON (Sub-block): Enables smooth lighting for non full block (experimental).",
 
+  "vulkanmod.options.msaa": "MSAA",
+  "vulkanmod.options.msaa.tooltip": "Multisample Anti-Aliasing. Reduces jagged edges at the cost of GPU performance. Higher values are more demanding.",
+
   "vulkanmod.options.deviceSelector": "Device selector",
   "vulkanmod.options.deviceSelector.auto": "Auto",
   "vulkanmod.options.deviceSelector.tooltip": "Current device",

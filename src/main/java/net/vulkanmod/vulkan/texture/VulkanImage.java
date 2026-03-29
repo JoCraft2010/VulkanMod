@@ -35,6 +35,7 @@ public class VulkanImage {
     public final int usage;
     public final int viewType;
     public final int size;
+    public final int samples;
 
     private long id;
     private long allocation;
@@ -61,6 +62,7 @@ public class VulkanImage {
         this.usage = usage;
         this.aspect = getAspect(this.format);
         this.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        this.samples = VK_SAMPLE_COUNT_1_BIT;
 
         this.size = width * height * formatSize;
         this.levelImageViews = new long[mipLevels];
@@ -79,6 +81,7 @@ public class VulkanImage {
         this.usage = builder.usage;
         this.aspect = getAspect(this.format);
         this.viewType = builder.viewType;
+        this.samples = builder.samples;
 
         this.size = width * height * formatSize;
         this.levelImageViews = new long[builder.mipLevels];
@@ -132,7 +135,7 @@ public class VulkanImage {
 
             MemoryManager.getInstance()
                          .createImage(width, height, arrayLayers, mipLevels,
-                                      format, VK_IMAGE_TILING_OPTIMAL,
+                                      samples, format, VK_IMAGE_TILING_OPTIMAL,
                                       usage, flags,
                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                       pTextureImage,
@@ -470,6 +473,7 @@ public class VulkanImage {
         byte mipLevels = 1;
         int usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         int viewType = VK_IMAGE_VIEW_TYPE_2D;
+        int samples = VK_SAMPLE_COUNT_1_BIT;
 
         // Sampler settings
         boolean linearFiltering = false;
@@ -528,6 +532,16 @@ public class VulkanImage {
 
         public Builder setSamplerReductionMode(int reductionMode) {
             this.reductionMode = reductionMode;
+            return this;
+        }
+
+        public Builder setSamples(int samples) {
+            this.samples = switch (samples) {
+                case 2 -> VK_SAMPLE_COUNT_2_BIT;
+                case 4 -> VK_SAMPLE_COUNT_4_BIT;
+                case 8 -> VK_SAMPLE_COUNT_8_BIT;
+                default -> VK_SAMPLE_COUNT_1_BIT;
+            };
             return this;
         }
 
