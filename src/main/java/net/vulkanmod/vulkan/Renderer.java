@@ -45,6 +45,7 @@ import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
+import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -797,15 +798,67 @@ public class Renderer {
         if (!INSTANCE.recordingCmds)
             return;
 
+        VkExtent2D transformedExtent = transformToExtent(VkExtent2D.calloc(stack), width, height);
+        VkOffset2D transformedOffset = transformToOffset(VkOffset2D.calloc(stack), x, y, width, height);
+
+        int tx = transformedOffset.x();
+        int ty = transformedOffset.y();
+        int tw = transformedExtent.width();
+        int th = transformedExtent.height();
+
         VkViewport.Buffer viewport = VkViewport.malloc(1, stack);
-        viewport.x(x);
-        viewport.y(height + y);
-        viewport.width(width);
-        viewport.height(-height);
+        viewport.x(tx);
+        viewport.y(th + ty);
+        viewport.width(tw);
+        viewport.height(-th);
         viewport.minDepth(0.0f);
         viewport.maxDepth(1.0f);
 
+        VkRect2D.Buffer scissor = VkRect2D.malloc(1, stack);
+        scissor.offset(VkOffset2D.malloc(stack).set(0, 0));
+        scissor.extent(transformedExtent);
+
         vkCmdSetViewport(INSTANCE.currentCmdBuffer, 0, viewport);
+        vkCmdSetScissor(INSTANCE.currentCmdBuffer, 0, scissor);
+    }
+
+    private static VkOffset2D transformToOffset(VkOffset2D offset2D, int x, int y, int w, int h) {
+        int pretransformFlags = Vulkan.getPretransformFlags();
+        if(pretransformFlags == 0) {
+            offset2D.set(x, y);
+            return offset2D;
+        }
+        Framebuffer boundFramebuffer = Renderer.getInstance().boundFramebuffer;
+        int framebufferWidth = boundFramebuffer.getWidth();
+        int framebufferHeight = boundFramebuffer.getHeight();
+        switch (pretransformFlags) {
+            case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR -> {
+                offset2D.x(framebufferWidth - h - y);
+                offset2D.y(x);
+            }
+            case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR -> {
+                offset2D.x(framebufferWidth - w - x);
+                offset2D.y(framebufferHeight - h - y);
+            }
+            case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR -> {
+                offset2D.x(y);
+                offset2D.y(framebufferHeight - w - x);
+            }
+            default -> {
+                offset2D.x(x);
+                offset2D.y(y);
+            }
+        }
+        return offset2D;
+    }
+
+    private static VkExtent2D transformToExtent(VkExtent2D extent2D, int w, int h) {
+        int pretransformFlags = Vulkan.getPretransformFlags();
+        if(pretransformFlags == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
+                pretransformFlags == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR) {
+            return extent2D.set(h, w);
+        }
+        return extent2D.set(w, h);
     }
 
     public static void setScissor(int x, int y, int width, int height) {
@@ -813,13 +866,18 @@ public class Renderer {
             return;
 
         try (MemoryStack stack = stackPush()) {
-            int framebufferHeight = INSTANCE.boundFramebuffer.getHeight();
+        	VkExtent2D extent = VkExtent2D.malloc(stack);
+
+            transformToExtent(extent, INSTANCE.boundFramebuffer.getWidth(), INSTANCE.boundFramebuffer.getHeight());
+            int framebufferHeight = extent.height();
 
             x = Math.max(0, x);
 
             VkRect2D.Buffer scissor = VkRect2D.malloc(1, stack);
-            scissor.offset().set(x, framebufferHeight - (y + height));
-            scissor.extent().set(width, height);
+            // Use this corrected height to transform from OpenGL to Vulkan coordinate space.
+            scissor.offset(transformToOffset(VkOffset2D.malloc(stack), x, framebufferHeight - (y + height), width, height));
+            // Reuse the extent to transform the scissor width/height
+            scissor.extent(transformToExtent(extent, width, height));
 
             vkCmdSetScissor(INSTANCE.currentCmdBuffer, 0, scissor);
         }
