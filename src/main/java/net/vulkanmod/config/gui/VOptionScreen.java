@@ -36,8 +36,6 @@ public class VOptionScreen extends Screen {
 
     private int currentListIdx = 0;
 
-    private int tooltipX;
-    private int tooltipY;
     private int tooltipWidth;
 
     private VButtonWidget supportButton;
@@ -99,16 +97,10 @@ public class VOptionScreen extends Screen {
 
         int x = leftMargin + listWidth + 10;
         int width = this.width - x - 10;
-        int y = 50;
 
-        if (width < 200) {
-            x = 100;
+        if (width < 200)
             width = listWidth;
-            y = this.height - bottom + 10;
-        }
 
-        this.tooltipX = x;
-        this.tooltipY = y;
         this.tooltipWidth = width;
 
         buildPage();
@@ -258,7 +250,7 @@ public class VOptionScreen extends Screen {
 
         List<FormattedCharSequence> list = getHoveredButtonTooltip(currentList, mouseX, mouseY);
         if (list != null) {
-            this.renderTooltip(list, this.tooltipX, this.tooltipY);
+            this.renderTooltip(list, mouseX, mouseY);
         }
     }
 
@@ -268,21 +260,40 @@ public class VOptionScreen extends Screen {
         }
     }
 
-    private void renderTooltip(List<FormattedCharSequence> list, int x, int y) {
+    private void renderTooltip(List<FormattedCharSequence> list, int mx, int my) {
+        if (list.isEmpty()) return;
+
         int padding = 3;
-        int width = GuiRenderer.getMaxTextWidth(this.font, list);
-        int height = list.size() * 10;
+        int lineSpacing = 10;
+        int textWidth = 0;
+
+        for (FormattedCharSequence line : list) {
+            textWidth = Math.max(textWidth, this.font.width(line));
+        }
+
+        int totalWidth = textWidth + (padding * 2);
+        int totalHeight = (list.size() * lineSpacing) + (padding * 2);
+
+        int x = mx + 12;
+        int y = my - 12;
+
+        if (x + totalWidth > this.width) {
+            x = mx - totalWidth - 5;
+        }
+
+        if (y + totalHeight > this.height) {
+            y = this.height - totalHeight - 5;
+        }
+
         float intensity = 0.05f;
-        int color = ColorUtil.ARGB.pack(intensity, intensity, intensity, 0.6f);
-        GuiRenderer.fill(x - padding, y - padding, x + width + padding, y + height + padding, color);
+        int color = ColorUtil.ARGB.pack(intensity, intensity, intensity, 0.8f);
+        GuiRenderer.fill(x, y, x + totalWidth, y + totalHeight, color);
 
         color = RED;
-        GuiRenderer.renderBorder(x - padding, y - padding, x + width + padding, y + height + padding, 1, color);
+        GuiRenderer.renderBorder(x, y , x + totalWidth, y + totalHeight, 1, color);
 
-        int yOffset = 0;
-        for (var text : list) {
-            GuiRenderer.drawString(this.font, text, x, y + yOffset, 0xffffffff);
-            yOffset += 10;
+        for (int i = 0; i < list.size(); i++) {
+            GuiRenderer.drawString(this.font, list.get(i), x + padding, y + padding + (i * lineSpacing), 0xffffffff);
         }
     }
 
@@ -293,7 +304,7 @@ public class VOptionScreen extends Screen {
             if (tooltip == null)
                 return null;
 
-            return this.font.split(tooltip, this.tooltipWidth);
+            return this.font.split(tooltip, 170);
         }
         return null;
     }
