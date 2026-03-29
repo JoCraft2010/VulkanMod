@@ -16,7 +16,12 @@ import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.device.DeviceManager;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.IntStream;
+
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.glfw.GLFW;
 
 public abstract class Options {
     public static boolean fullscreenDirty = false;
@@ -76,6 +81,12 @@ public abstract class Options {
             RefreshRate.setNewValue(newRefreshRates[newRefreshRates.length - 1]);
         });
 
+        PointerBuffer monitors = GLFW.glfwGetMonitors();
+        int monitorCount = monitors != null ? monitors.limit() : 1;
+        Integer[] monitorIndices = new Integer[monitorCount];
+        for (int i = 0; i < monitorCount; i++)
+            monitorIndices[i] = i;
+
         return new OptionBlock[]{
                 new OptionBlock("", new Option<?>[]{
                         resolutionOption,
@@ -92,6 +103,21 @@ public abstract class Options {
                                 },
                                 () -> WindowMode.fromValue(config.windowMode))
                                 .setTranslator(value -> Component.translatable(WindowMode.getComponentName(value))),
+                        new CyclingOption<>(
+                                Component.translatable("vulkanmod.options.monitor"),
+                                monitorIndices,
+                                (value) -> {
+                                    config.monitor = value;
+                                    if (minecraftOptions.fullscreen().get())
+                                        fullscreenDirty = true;
+                                },
+                                () -> config.monitor)
+                                .setTranslator(index -> {
+                                    if (monitors != null && index < monitors.limit())
+                                        return Component.nullToEmpty(GLFW.glfwGetMonitorName(monitors.get(index)));
+                                    return Component.translatable("vulkanmod.options.unknown");
+                                })
+                                .setTooltip(Component.translatable("vulkanmod.options.monitor.tooltip")),
                         new RangeOption(Component.translatable("options.framerateLimit"),
                                         10, 260, 10,
                                         value -> Component.nullToEmpty(value == 260 ?

@@ -47,6 +47,9 @@
   "vulkanmod.options.windowMode.windowed": "Windowed",
   "vulkanmod.options.windowMode.windowedFullscreen": "Windowed Fullscreen",
 
+  "vulkanmod.options.monitor": "Monitor",
+  "vulkanmod.options.monitor.tooltip": "This option has no impact if Window Mode is not Fullscreen.",
+
   "vulkanmod.options.builderThreads": "Chunk Builder Threads",
   "vulkanmod.options.builderThreads.auto": "Auto",
 
