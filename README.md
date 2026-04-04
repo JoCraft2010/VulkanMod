@@ -26,11 +26,12 @@ This is our Fork of Vulkanmod.
 >- [x] Indirect Draw mode (reduces CPU overhead)
 >- [x] Chunk rendering optimizations
 >- [x] LWJGL 3.4.1
+>- [ ] Use Slang Shader Language
 >- [ ] Gpu Mesh Shadering
 >- [ ] GPU Driven LOD and Culling
 >- [ ] Sampler Feedback
 >- [ ] Variable Rate Shading
->- [ ] Use Slang Shader Language
+
 
 ### New changes:
 >- [x] Native Wayland support
